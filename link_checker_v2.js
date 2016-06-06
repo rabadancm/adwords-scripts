@@ -1,15 +1,12 @@
 
-/************************************************
-* Find and tag broken urls in your account
-* Version 1.2
-* Created By: Russ Savage
-* Upgraded by Carlos Rabadan
-* FreeAdWordsScripts.com
-************************************************/
+/*****************************************************
+* Find, tag and report broken urls in your account
+* Version 0.8
+* Created By: Carlos Rabadan
+****************************************************/
 
 
-var MAX_ADS_CHECKS = 100; //800 default
-var MAX_EXEC_TIME = 1740000;//ms MAX=29mins (1740000ms)
+var MAX_EXEC_TIME = 1500000;//ms MAX=29mins (1740000ms)
 var DATE_RANGE = "ALL_TIME";
 var READ_ONLY = false; //si es FALSE intentara pausar anuncios/keywords rotas y etiquetarlas
 var LABEL_NAME = "Revisar URL";   
@@ -18,93 +15,118 @@ var TO = ['carlosr@semmantica.com']; //you can add more, separate with commas
 var SUBJECT = 'Broken Url Report - ' + _getDateString();
 var FILE_NAME = 'bad_urls_' + _getDateString() + '.csv';
 var FIELD_SEPARATOR = ",";
+var SPREADSHEET_URL="https://docs.google.com/spreadsheets/d/1EemxgRnOVPUME_stisSLR0JgzqsruvNpL1nU4-9a3qk/edit";
+var SHEET_NAME = 'Sheet1';
+var SHEET_HEADER = ['AdStatus','RevTime','CampaignId','AdGroupId','AdId'];
 var HTTP_OPTIONS = {
   muteHttpExceptions:true,
   followRedirects: false
 };
-/*
-* REPORT_LEVEL: ajusta el grado de error a monitorizar
+
+/* REPORT_LEVEL: ajusta el grado de error a monitorizar
 * "verbose": todo
 * "redirection": >299
-* "error": >399 tambien -1 (url no reconocida)
-*/
+* "error": >399 tambien -1 (url no reconocida) */
 var REPORT_LEVEL_TIERS = {"none":0 , "verbose":1, "redirection":2, "error":3}
 var REPORT_LEVEL = REPORT_LEVEL_TIERS.redirection; 
 
 
+var shelper = new SHelper();
+
 
 function main() {
     
-  var revised_urls = [];
-  var urlMap = {};
+  var revised_urls = [];  
   var badUrlMap = {};
   var ent_counter=0;
   var bad_counter=0;
-  var rev_counter=0;
-  var time1,time0 = new Date().getTime(); //time flag  
-  var iters = _getEntities();//filtra los ads/kws que queremos comprobar
-
   var totalEntities=0;
+  var time1, time0=new Date().getTime(); //time flag  
+
+  //crea la label en caso de no existir
+  _createLabel(LABEL_NAME, LABEL_COLOR); 
+
+  //obtiene las entidades que queremos comprobar
+  var iters = getEntities();
   for(var i=0;i<iters.length;i++)
     totalEntities += iters[i].totalNumEntities();
 
-  _createLabel(LABEL_NAME, LABEL_COLOR); //crea la label en caso de no existir
+
+  //limpia el spreadsheet si la entidad revisada mas vieja tiene mas de una semana
+  if(shelper.size() > 1) {  
+    var firstRow = shelper.readRow(2);
+    if(firstRow.length && firstRow[0]) {
+      var firstTime = firstRow[SHEET_HEADER.indexOf('RevTime')];
+      if(time0 - firstTime > 604800000) {
+        shelper.clearData();
+        shelper.appendRow(SHEET_HEADER);
+      }
+    }
+  }else{
+    shelper.clearData();
+    shelper.appendRow(SHEET_HEADER);
+  }
+
+
+  /* Obtiene el conjunto completo de entidades previamente revisadas para comparar
+  El ID de una entidad esta formado por el ID del adgroup + su propio ID */
+  var checkedIds = getCheckedAdIds(shelper);  
+
 
 
   main_loop:
   for(var x in iters) {
     var iter = iters[x];
 
+
     entity_loop:
     while(iter.hasNext()) 
     {
+      var entity = iter.next();
 
-      //controla el tiempo transcurrido, si el script tarda mas de 29min paramos
+      //controla el tiempo transcurrido para detener el script 
       time1 = new Date().getTime(); 
       if((time1 - time0) > MAX_EXEC_TIME) {
         Logger.log("AVISO: tiempo de ejecución excedido, parando el script. Tiempo total: "+
           (time1-time0)/60000 +"min");  
           break main_loop;      
       }
+      
 
+      //si la entidad ya esta etiquetada o si esta en la spreadsheet se la salta
+      var entityId = entity.getAdGroup().getId() +''+ entity.getId();    
 
-      var entity = iter.next();
-      //si la entidad ya esta etiquetada se la salta
-      if(_hasLabel(entity, LABEL_NAME))
-        continue entity_loop;
-
+      if(_hasLabel(entity, LABEL_NAME) || entityId in checkedIds)
+        continue entity_loop; 
       ent_counter++;
               
-      /* 
-      * Comprueba tanto la url normal como la mobile; no mira dos veces la misma url
-      * Adwords permite hasta un maximo de 20000 llamadas a UrlFetchApp.fetch al dia
-      */
+       
+
+      //Comprueba tanto la url normal como la mobile
+      //Adwords permite hasta un maximo de 20000 llamadas a UrlFetchApp.fetch al dia
       var urls = [entity.urls().getFinalUrl(), entity.urls().getMobileFinalUrl()];
+      urls_loop:
       for (var i=0; i<urls.length; i++) {
-        if (urls[i]==null || !urls[i]) 
-          continue;                  
+        if (urls[i]==null || !urls[i]) continue;                            
                 
         var response_code=0;        
         var lastUrl = encodeURI(urls[i]);
-        if (lastUrl in urlMap && !(lastUrl in badUrlMap)) 
-          continue entity_loop;
-                
-        if(!(lastUrl in urlMap)) {
-          rev_counter++;
-          //_logEntity(entity); //log every entity
-        }
-        
-        urlMap[lastUrl] = true;          
+                     
         try{                
           response_code = UrlFetchApp.fetch(lastUrl, HTTP_OPTIONS).getResponseCode();
         }catch(e) {
           //Something is wrong here, we should know about it.
           revised_urls.push({e : entity, code : -1});
           badUrlMap[lastUrl] = true;
+          if(!READ_ONLY) {
+            _setLabel(entity, LABEL_NAME);
+            //_pauseEntity(entity,response_code); //pausa el anuncio 
+          } 
+          continue entity_loop;
         }
 
 
-  
+        //identifica el tipo de error HTML
         switch(REPORT_LEVEL) {                       
           case 0: 
           default: break;          
@@ -134,9 +156,22 @@ function main() {
             }
             break;
         }                        
-      }
-    }  
-  }
+      }//urls_loop
+
+
+
+      //guarda la entidad actual en el spreadsheet
+      var arow = [
+        entity.isEnabled(),        
+        time0,
+        entity.getCampaign().getId(),
+        entity.getAdGroup().getId(),
+        entity.getId()
+      ];
+      shelper.appendRow(arow);
+
+    }//entity_loop  
+  }//main_loop
 
 
 
@@ -149,12 +184,11 @@ function main() {
       attachment += _formatResults(revised_urls[i], FIELD_SEPARATOR);
     }
     var body = "Se han encontrado " + bad_counter + " URLs rotas. Ver el informe adjunto para más detalles.";
-      body+="\n" +
-        "\nNumero maximo de entidades a revisar: "+(MAX_ADS_CHECKS * iters.length) +
+      body+="\n" +        
         "\nNumero total de entidades encontrados con el filtro seleccionado: "+ totalEntities +
-        "\nEntidades revisadas: "+ent_counter +
-        "\nURLs unicas: "+rev_counter +
+        "\nEntidades revisadas: "+ent_counter +        
         "\nURLs con error: "+bad_counter;
+
 
     reportMail(SUBJECT, body, attachment);
   }
@@ -162,11 +196,9 @@ function main() {
 
 
   /* SUMMARY LOG */
-  Logger.log("\n\n/////////////////////////////////////////////////////////////////////////\n");
-  Logger.log("Numero maximo de entidades a revisar: "+ (MAX_ADS_CHECKS * iters.length));
+  Logger.log("\n\n/////////////////////////////////////////////////////////////////////////\n");  
   Logger.log("Numero total de entidades encontrados con el filtro seleccionado: " + totalEntities);
   Logger.log("Entidades revisadas: "+ ent_counter);
-  Logger.log("URLs unicas: "+ rev_counter);
   Logger.log("Entidades con error: "+ bad_counter);
   Logger.log("\n/////////////////////////////////////////////////////////////////////////");
 
@@ -174,7 +206,24 @@ function main() {
   
 
 
-function _getEntities() {
+
+
+function getCheckedAdIds(shelper) {
+  var adIds = [];
+  var adGroupIds = [];
+  var ids = {};    
+  if(shelper) {
+    adGroupIds = shelper.readColumnData('AdGroupId');
+    adIds = shelper.readColumnData('AdId');
+
+    for(var i=0; i<adGroupIds.length; i++) {       
+      ids[ adGroupIds[i] +''+ adIds[i] ] = true;        
+    }
+  }
+  return ids;
+}
+
+function getEntities() {
   return iters = [ 
       
     /* ADS */
@@ -186,8 +235,7 @@ function _getEntities() {
       .withCondition("AdGroupStatus != DELETED") 
       .withCondition("CampaignStatus != DELETED")            
       .orderBy("Clicks DESC")
-      .orderBy("Impressions DESC")
-      .withLimit(MAX_ADS_CHECKS)
+      .orderBy("Impressions DESC")      
       .forDateRange(DATE_RANGE)              
       //.withCondition("Type = 'TEXT_AD'")
       .get()
@@ -210,6 +258,7 @@ function reportMail(mail_subject, mail_body, attachment) {
     MailApp.sendEmail(TO[i], mail_subject, mail_body, options);     
   }  
 }
+
 
 function _hasLabel(entity,label) {
   var labels = entity.labels()
@@ -322,5 +371,83 @@ function _logEntity(entity) {
     return;
 }
 
+function SHelper() {
+  
+  this.ss = SpreadsheetApp.openByUrl(SPREADSHEET_URL);
+  this.sh = this.ss.getSheetByName(SHEET_NAME);
+  this.header = SHEET_HEADER;
 
-//test
+  this.flush = function() {
+    //ejecuta los cambios pendientes de la spreadsheet
+    SpreadsheetApp.flush();
+  }
+
+  this.readAllData = function() {
+    //todas las filas y columnas con valor
+    var values = this.sh.getDataRange().getValues(); 
+    values.shift(); //get rid of headers
+    var data = [];  
+
+    for (var i=0; i<values.length; i++) {
+      var row = "";
+      for (var j=0; j<values[i].length; j++) {
+        if (values[i][j]) {
+          row = row + values[i][j];
+        }
+        row = row + ",";
+      }         
+      data[i] = row.slice(0, -1);   
+    }
+    return data;
+  }
+
+  this.readColumnData = function(columnName) {
+    
+    var index = this.header.indexOf(columnName);
+    var values = this.sh.getRange(1, index+1, this.sh.getLastRow()).getValues();
+    values.shift(); //get rid of headers
+    var data = [];  
+
+    for (var i=0; i<values.length; i++) {
+      var row = "";
+      for (var j=0; j<values[i].length; j++) {
+        if (values[i][j]) {
+          row = row + values[i][j];
+        }
+        row = row + ",";
+      }         
+      data[i] = row.slice(0, -1);   
+    }
+    return data;
+  }
+
+  this.clearData = function() {
+    //Clear spreadsheet content while preserving any formatting
+    this.sh.clearContents();
+  }
+
+  this.appendRow = function(row) {
+    // Appends a new row to the bottom of the spreadsheet 
+    if(row) this.sh.appendRow(row);
+  }
+
+  this.readRow = function(index) {
+    //get row by its index
+    var r=[];
+    if(index > 0 && this.sh.getLastRow() > 0) {
+      var values = this.sh.getRange(index, 1, 1, this.sh.getLastColumn()).getValues();      
+        for (var i=0; i<values[0].length; i++) {
+          r[i] = values[0][i];
+        }          
+    }
+    return r;
+  }
+
+  this.size = function() {
+    return this.sh.getLastRow();
+  }
+}
+
+
+
+
