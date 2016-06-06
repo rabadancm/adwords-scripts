@@ -5,18 +5,19 @@
 * Created By: Carlos Rabadan
 ****************************************************/
 
-
-var MAX_EXEC_TIME = 1500000;//ms MAX=29mins (1740000ms)
+//url del excel que almacena los ids de las entidades revisadas (uno por cuenta de adw)
+var SPREADSHEET_URL="https://docs.google.com/spreadsheets/d/1EemxgRnOVPUME_stisSLR0JgzqsruvNpL1nU4-9a3qk/edit";
+var SHEET_NAME = 'Sheet1';
+var MAX_EXEC_TIME = 1500000;//MAX=29mins (1740000ms), DEFAULT=25min (1500000ms)
 var DATE_RANGE = "ALL_TIME";
 var READ_ONLY = false; //si es FALSE intentara pausar anuncios/keywords rotas y etiquetarlas
+var SEND_MAIL = true;
 var LABEL_NAME = "Revisar URL";   
 var LABEL_COLOR = '#CC0000'; //rojo oscuro
 var TO = ['carlosr@semmantica.com']; //you can add more, separate with commas
 var SUBJECT = 'Broken Url Report - ' + _getDateString();
 var FILE_NAME = 'bad_urls_' + _getDateString() + '.csv';
 var FIELD_SEPARATOR = ",";
-var SPREADSHEET_URL="https://docs.google.com/spreadsheets/d/1EemxgRnOVPUME_stisSLR0JgzqsruvNpL1nU4-9a3qk/edit";
-var SHEET_NAME = 'Sheet1';
 var SHEET_HEADER = ['AdStatus','RevTime','CampaignId','AdGroupId','AdId'];
 var HTTP_OPTIONS = {
   muteHttpExceptions:true,
@@ -176,7 +177,7 @@ function main() {
 
 
   /* Redacta el email y el informe de urls adjunto */  
-  if(revised_urls.length > 0) {  
+  if(revised_urls.length > 0 && SEND_MAIL) {  
     var column_names = ['Type','Status','CampaignName','AdGroupName',
     'Text','CampaignID','AdGroupID','AdID','ResponseCode','URL'];
     var attachment = column_names.join(",")+"\n";
@@ -188,7 +189,6 @@ function main() {
         "\nNumero total de entidades encontrados con el filtro seleccionado: "+ totalEntities +
         "\nEntidades revisadas: "+ent_counter +        
         "\nURLs con error: "+bad_counter;
-
 
     reportMail(SUBJECT, body, attachment);
   }
