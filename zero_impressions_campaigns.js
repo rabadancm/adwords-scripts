@@ -6,32 +6,47 @@
 **************************************/
 
 var SEND_MAIL = true;
-var TO = ['carlosr@semmantica.com']; //you can add more, separate with commas
+var TO = ['carlosr@semmantica.com','ana@semmantica.com']; //you can add more, separate with commas
 var SUBJECT = 'Zero impressions alert - ' + _getDateString();
 var FILE_NAME = 'zero_impressions_' + _getDateString() + '.csv';
 var FIELD_SEPARATOR = ",";
-var DATE_RANGE = 'YESTERDAY';
+
 
 
 function main() {
       
   var bad_campaigns = [];
+  var bad_campaigns_ids = [];
 
-  var campaignsIterator = AdWordsApp
-  .campaigns()
+  /* Localiza las campañas que tuvieron 0 impresiones ayer */
+  var iter1 = AdWordsApp.campaigns()
   .withCondition('Impressions = 0')
   .withCondition('Status = ENABLED')
-  .forDateRange(DATE_RANGE)
+  .forDateRange('YESTERDAY')
   .orderBy('Name DESC')
   .get();
 
-  var totalEntities = campaignsIterator.totalNumEntities();
+  var totalEntities = iter1.totalNumEntities();
 
-  while (campaignsIterator.hasNext()) {
-    var campaign = campaignsIterator.next();   
-    bad_campaigns.push(campaign);   
+  while (iter1.hasNext()) {
+    var c = iter1.next();       
+    bad_campaigns_ids.push(c.getId());
   }
    
+  /* Mira que rendimiento tuvieron estas campañas los ultimos dias */
+  var iter2 = AdWordsApp.campaigns()
+  .withIds(bad_campaigns_ids)
+  .forDateRange('LAST_7_DAYS')
+  .withCondition('Impressions = 0')
+  .withCondition('Status = ENABLED')
+  .orderBy('Name DESC')
+  .get();
+
+  while (iter2.hasNext()) {
+    var c = iter2.next();   
+    if(!c.getEndDate()) 
+      bad_campaigns.push(c);     
+  }
 
 
 
@@ -43,20 +58,16 @@ function main() {
     for(var i in bad_campaigns) {
       attachment += _formatResults(bad_campaigns[i], FIELD_SEPARATOR);
     }
-    var body = "Se han encontrado " + bad_campaigns.length + " campañas sin impresiones. Ver el informe adjunto para más detalles.";
-      body+="\n" +                             
-        "\nCampañas sin impresiones: "+bad_campaigns.length + 
-        "\nRango de tiempo seleccionado: "+DATE_RANGE;
-
+    var body = "Se han encontrado " + bad_campaigns.length + 
+      " campañas sin impresiones. Ver el informe adjunto para más detalles.";   
     reportMail(SUBJECT, body, attachment);
-  }
+} 
      
 
 
   /* SUMMARY LOG */
   Logger.log("\n\n/////////////////////////////////////////////////////////////////////////\n");              
-  Logger.log("Campañas sin impresiones: "+bad_campaigns.length);
-  Logger.log("Rango de tiempo seleccionado: "+DATE_RANGE);
+  Logger.log("Campañas sin impresiones: "+bad_campaigns.length);  
   Logger.log("\n/////////////////////////////////////////////////////////////////////////");
 
 }
