@@ -1,7 +1,7 @@
 
 /*****************************************************
 * Find, tag and report broken urls in your account
-* Version 1.6
+* Version 0.8
 * Created By: Carlos Rabadan
 ****************************************************/
 
@@ -51,13 +51,22 @@ function main() {
   for(var i=0;i<iters.length;i++)
     totalEntities += iters[i].totalNumEntities();
 
+
   //limpia el spreadsheet si la entidad revisada mas vieja tiene mas de una semana
-  var firstRow = shelper.readRow(1);
-  if(firstRow.length > 0) {
-    var firstTime = firstRow[SHEET_HEADER.indexOf('RevTime')];
-    if(time0 - firstTime > 604800000)
-      shelper.clearData();
+  if(shelper.size() > 1) {  
+    var firstRow = shelper.readRow(2);
+    if(firstRow.length && firstRow[0]) {
+      var firstTime = firstRow[SHEET_HEADER.indexOf('RevTime')];
+      if(time0 - firstTime > 604800000) {
+        shelper.clearData();
+        shelper.appendRow(SHEET_HEADER);
+      }
+    }
+  }else{
+    shelper.clearData();
+    shelper.appendRow(SHEET_HEADER);
   }
+
 
   /* Obtiene el conjunto completo de entidades previamente revisadas para comparar
   El ID de una entidad esta formado por el ID del adgroup + su propio ID */
@@ -425,17 +434,18 @@ function SHelper() {
   this.readRow = function(index) {
     //get row by its index
     var r=[];
-    if(index > 0) {
-      var values = this.sh.getRange(index, 1, 1, this.sh.getLastColumn()).getValues();
-      for (var row in values) {
-        for (var col in values[row]) {
-          r = r + values[row][col];
-        }
-      }
-      return r;
+    if(index > 0 && this.sh.getLastRow() > 0) {
+      var values = this.sh.getRange(index, 1, 1, this.sh.getLastColumn()).getValues();      
+        for (var i=0; i<values[0].length; i++) {
+          r[i] = values[0][i];
+        }          
     }
+    return r;
   }
 
+  this.size = function() {
+    return this.sh.getLastRow();
+  }
 }
 
 
