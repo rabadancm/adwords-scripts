@@ -1,7 +1,7 @@
 
 /*****************************************************
 * Find, tag and report broken urls in your account
-* Version 0.8
+* Version 0.9
 * Created By: Carlos Rabadan
 ****************************************************/
 
