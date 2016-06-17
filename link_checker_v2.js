@@ -12,7 +12,8 @@ var MAX_EXEC_TIME = 1500000;//MAX=29mins (1740000ms), DEFAULT=25min (1500000ms)
 var DATE_RANGE = "ALL_TIME";
 var READ_ONLY = false; //si es FALSE intentara pausar anuncios/keywords rotas y etiquetarlas
 var SEND_MAIL = true;
-var LABEL_NAME = "Revisar URL";   
+var LABEL_NAME = "Revisar URL"; 
+var BLOCK_LABEL_NAME = "NO URL";   
 var LABEL_COLOR = '#CC0000'; //rojo oscuro
 var TO = ['carlosr@semmantica.com']; //you can add more, separate with commas
 var SUBJECT = 'Broken Url Report - ' + _getDateString();
@@ -97,7 +98,7 @@ function main() {
       //si la entidad ya esta etiquetada o si esta en la spreadsheet se la salta
       var entityId = entity.getAdGroup().getId() +''+ entity.getId();    
 
-      if(_hasLabel(entity, LABEL_NAME) || entityId in checkedIds)
+      if(_hasLabel(entity,LABEL_NAME) || entityId in checkedIds || _hasLabel(entity,BLOCK_LABEL_NAME))
         continue entity_loop; 
       ent_counter++;
               

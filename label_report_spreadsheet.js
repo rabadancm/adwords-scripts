@@ -1,20 +1,21 @@
-/*
+/****************************************************************
  * Crea un informe con los ads que tienen cierta etiqueta 
  * y lo exporta a una hoja de calculo externa
- */
+ ****************************************************************/
+
 function main() {	
   
-  var CLIENT = '';
+  var CLIENT = ''; //fill with account name
   var LABEL_NAME = 'Revisar URL';
   var FILE_NAME = 'label-report-' + CLIENT + '_' + _getDateString();
-  var MAIL_TO = ['carlosr@semmantica.com'];
+  var MAIL_TO = ['carlosr@semmantica.com']; //add more mails separated with comma
 
 	/* FILTER ENTITIES BY LABEL ID */
 	var label = AdWordsApp.labels()
 	  .withCondition("Name = '"+LABEL_NAME+"'").get().next();
 
 	/* Adwords Query Language (AWQL) */
-  	var query = 'SELECT CampaignName,AdGroupName,Headline,CampaignId,AdGroupId,Id,AdType,Status '+
+  	var query = 'SELECT CampaignName,AdGroupName,Headline,CampaignId,AdGroupId,Id,AdType,CampaignStatus,AdGroupStatus,Status,Clicks,CreativeFinalUrls '+
       'from AD_PERFORMANCE_REPORT '+
       'where LabelIds CONTAINS_ANY [' + label.getId() + '] AND CampaignName DOES_NOT_CONTAIN "ZZ_" '+
       'during LAST_7_DAYS';
