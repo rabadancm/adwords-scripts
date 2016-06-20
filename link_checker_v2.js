@@ -1,17 +1,17 @@
 
 /*****************************************************
 * Find, tag and report broken urls in your account
-* Version 0.9
+* Version 1.0
 * Created By: Carlos Rabadan
 ****************************************************/
 
 //url del excel que almacena los ids de las entidades revisadas (uno por cuenta de adw)
-var SPREADSHEET_URL="https://docs.google.com/spreadsheets/d/1EemxgRnOVPUME_stisSLR0JgzqsruvNpL1nU4-9a3qk/edit";
+var SPREADSHEET_URL="";
 var SHEET_NAME = 'Sheet1';
 var MAX_EXEC_TIME = 1500000;//MAX=29mins (1740000ms), DEFAULT=25min (1500000ms)
 var DATE_RANGE = "ALL_TIME";
 var READ_ONLY = false; //si es FALSE intentara pausar anuncios/keywords rotas y etiquetarlas
-var SEND_MAIL = true;
+var SEND_MAIL = false;
 var LABEL_NAME = "Revisar URL"; 
 var BLOCK_LABEL_NAME = "NO URL";   
 var LABEL_COLOR = '#CC0000'; //rojo oscuro
@@ -54,17 +54,8 @@ function main() {
     totalEntities += iters[i].totalNumEntities();
 
 
-  //limpia el spreadsheet si la entidad revisada mas vieja tiene mas de una semana
-  if(shelper.size() > 1) {  
-    var firstRow = shelper.readRow(2);
-    if(firstRow.length && firstRow[0]) {
-      var firstTime = firstRow[SHEET_HEADER.indexOf('RevTime')];
-      if(time0 - firstTime > 604800000) {
-        shelper.clearData();
-        shelper.appendRow(SHEET_HEADER);
-      }
-    }
-  }else{
+  //reinicia el spreadsheet si estamos a domingo o si esta vacio
+  if(shelper.size() < 1 || (new Date()).getDay() == 0) {  
     shelper.clearData();
     shelper.appendRow(SHEET_HEADER);
   }
